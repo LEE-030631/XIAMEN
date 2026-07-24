@@ -1,0 +1,9 @@
+{
+  "name": "金廈員旅｜隨行手冊",
+  "short_name": "金廈員旅",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f5ef",
+  "theme_color": "#67705d",
+  "lang": "zh-Hant"
+}

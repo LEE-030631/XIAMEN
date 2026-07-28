@@ -46,6 +46,7 @@
 
 <script>
 const STORE='jinxia-trip-v2';
+const DRAFT_KEY='jinxia-trip-has-unpublished-changes';
 const SUPABASE_URL='https://jryqfwfiigwihwlhiztf.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyeXFmd2ZpaWd3aWh3bGhpenRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxODExNDEsImV4cCI6MjEwMDc1NzE0MX0.xne3fHYpswit40dNFzOSO4VJh1PRkWcu7EuUjh2OzxU';
 const OWNER_EMAIL='aaron85102250@gmail.com';
@@ -70,7 +71,7 @@ trip.days=trip.days.map(normaliseDay);
 trip.guide=trip.guide.map(normaliseGuide);
 trip.banner=trip.banner||seed.banner;
 function normaliseTrip(){trip.days=(trip.days||[]).map(normaliseDay);trip.guide=(trip.guide||[]).map(normaliseGuide);trip.banner=trip.banner||seed.banner}
-function saveLocalTrip(){localStorage.setItem(STORE,JSON.stringify(trip))}
+function saveLocalTrip(){localStorage.setItem(STORE,JSON.stringify(trip));localStorage.setItem(DRAFT_KEY,'1')}
 function renderTrip(){renderMeta();renderDays();renderGuide()}
 const e=s=>String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 const mapUrl=p=>`https://www.google.com/maps/search/?api=1&query=${p[1]},${p[2]}`;
@@ -104,10 +105,10 @@ function addGuide(){storeGuide();trip.guide.push({title:'新導覽文章',tag:'N
 function deleteGuide(){trip.guide.splice(guideEdit,1);guideEdit=Math.max(0,guideEdit-1);renderGuideEditor()}
 function saveGuides(){storeGuide();saveLocalTrip();renderGuide();closeGuideEditor()}
 function cloudButton(){let owner=cloudSession?.user?.email===OWNER_EMAIL;cloudBtn.innerHTML=owner?'<i class="fa-solid fa-cloud-arrow-up mr-1"></i>發布':'<i class="fa-solid fa-cloud mr-1"></i>同步';cloudBtn.title=owner?'發布共用更新':'登入後發布'} 
-async function loadSharedTrip(){if(!cloud)return;let {data,error}=await cloud.from('trip_content').select('payload').eq('id',1).maybeSingle();if(error){console.warn('Shared trip unavailable:',error.message);return}if(data?.payload){trip=data.payload;normaliseTrip();saveLocalTrip();renderTrip()}}
+async function loadSharedTrip(){if(!cloud||localStorage.getItem(DRAFT_KEY)==='1')return;let {data,error}=await cloud.from('trip_content').select('payload').eq('id',1).maybeSingle();if(error){console.warn('Shared trip unavailable:',error.message);return}if(data?.payload){trip=data.payload;normaliseTrip();localStorage.setItem(STORE,JSON.stringify(trip));renderTrip()}}
 async function cloudAction(){if(!cloud){alert('共用資料服務尚未載入，請確認網路後重試。');return}if(cloudSession?.user?.email===OWNER_EMAIL){await publishSharedTrip();return}if(cloudSession){alert('目前登入帳號不是管理者，僅可查看共用內容。');return}let {error}=await cloud.auth.signInWithOtp({email:OWNER_EMAIL,options:{emailRedirectTo:location.href}});alert(error?'登入連結寄送失敗：'+error.message:'登入連結已寄到管理者信箱。點開信件中的連結後，即可發布更新。')}
-async function publishSharedTrip(){if(cloudSession?.user?.email!==OWNER_EMAIL){alert('請先以管理者帳號登入。');return}cloudBtn.disabled=true;cloudBtn.textContent='發布中…';let {error}=await cloud.from('trip_content').upsert({id:1,payload:trip,updated_at:new Date().toISOString()});cloudBtn.disabled=false;cloudButton();alert(error?'發布失敗：'+error.message:'已發布共用更新。其他人重新整理網址後即可看到最新版。')}
-async function initCloud(){if(!window.supabase)return;cloud=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);let {data:{session}}=await cloud.auth.getSession();cloudSession=session;cloudButton();await loadSharedTrip();cloud.auth.onAuthStateChange((_event,session)=>{cloudSession=session;cloudButton();if(session)loadSharedTrip()})}
+async function publishSharedTrip(){if(cloudSession?.user?.email!==OWNER_EMAIL){alert('請先以管理者帳號登入。');return}cloudBtn.disabled=true;cloudBtn.textContent='發布中…';let {error}=await cloud.from('trip_content').upsert({id:1,payload:trip,updated_at:new Date().toISOString()});cloudBtn.disabled=false;cloudButton();if(error){alert('發布失敗：'+error.message)}else{localStorage.removeItem(DRAFT_KEY);alert('已發布共用更新。其他人重新整理網址後即可看到最新版。')}}
+async function initCloud(){if(!window.supabase)return;cloud=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);let {data:{session}}=await cloud.auth.getSession();cloudSession=session;cloudButton();await loadSharedTrip();cloud.auth.onAuthStateChange((_event,session)=>{cloudSession=session;cloudButton()})}
 document.querySelectorAll('.navBtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.page).classList.add('active');document.querySelectorAll('.navBtn').forEach(x=>x.className='navBtn text-stone-400 py-2 text-xs');b.className='navBtn text-moss py-2 text-xs';window.scrollTo({top:0,behavior:'smooth'})});share.onclick=async()=>{try{await navigator.share({title:'金廈員旅',url:location.href})}catch(_){navigator.clipboard?.writeText(location.href)}};addEventListener('scroll',()=>document.documentElement.style.setProperty('--p',(scrollY/(document.documentElement.scrollHeight-innerHeight)*100||0)+'%'));if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js').catch(()=>{});renderMeta();renderDays();renderGuide();renderChecks();showLinks();
 cloudBtn.onclick=cloudAction;initCloud();
 </script>
